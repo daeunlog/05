@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DATABASE_URL: str = "sqlite:///./qrsafe.db"
     VIRUSTOTAL_API_KEY: str = ""
+    CACHE_HASH_SECRET: str = ""
     USE_MOCK_MODEL: bool = True
 
     model_config = SettingsConfigDict(

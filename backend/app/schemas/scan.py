@@ -45,6 +45,7 @@ class VirusTotalResult(BaseModel):
         "http_error",
         "network_error",
         "invalid_response",
+        "cache_error",
     ] | None = None
 
 
@@ -55,4 +56,4 @@ class ScanResponse(BaseModel):
     virustotal: VirusTotalResult
     risk_level: Literal["unknown"]
     is_complete: Literal[False]
-    cached: Literal[False]
+    cached: bool
