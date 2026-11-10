@@ -8,17 +8,23 @@ from app.schemas.scan import (
     VirusTotalResult,
 )
 from app.services.model_service import predict_url
+from app.services.virustotal_service import get_url_report
 
 router = APIRouter(prefix="/api", tags=["scan"])
 
 
 @router.post("/scan", response_model=ScanResponse)
-def scan_url(request: ScanRequest) -> ScanResponse:
+async def scan_url(request: ScanRequest) -> ScanResponse:
+    virustotal = VirusTotalResult()
+    if request.allow_external_lookup:
+        report = await get_url_report(str(request.url))
+        virustotal = VirusTotalResult(**report)
+
     return ScanResponse(
         scan_id=uuid4(),
         url=request.url,
         model=predict_url(request.url),
-        virustotal=VirusTotalResult(),
+        virustotal=virustotal,
         risk_level="unknown",
         is_complete=False,
         cached=False,
