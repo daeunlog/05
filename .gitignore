@@ -1,4 +1,3 @@
-
 # Python
 __pycache__/
 *.py[cod]
@@ -27,3 +26,6 @@ Thumbs.db
 *.pt
 *.pth
 *.safetensors
+
+# Work history
+work_history.md
