@@ -1,0 +1,7 @@
+# 서버(FastAPI)에서 qsing_model.infer 를 쓸 때 필요한 패키지
+# torch는 CPU 버전이면 충분하다:  pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.1
+transformers>=4.48   # ModernBERT 지원
+tldextract>=3.4
+numpy>=1.24
+scipy>=1.10          # 선택: 없으면 GELU 계산에 math.erf를 쓴다(조금 느림)
