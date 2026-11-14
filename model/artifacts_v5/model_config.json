@@ -1,0 +1,33 @@
+{
+  "repo": "CrabInHoney/urlbert-tiny-v6",
+  "revision": "020744435b3be870dabb2bba0b41237bea69b84b",
+  "model_version": "urlbert-tiny-v6@020744435b3b+head-mlp-strip2-2026-11-12",
+  "normalization": "strip2",
+  "pooling": "cls+mean",
+  "max_tokens": 256,
+  "head": {
+    "kind": "mlp",
+    "in_dim": 256,
+    "hidden": 128,
+    "n_classes": 4,
+    "dropout": 0.1,
+    "activation": "gelu_erf"
+  },
+  "labels": [
+    "benign",
+    "phishing",
+    "malware",
+    "defacement"
+  ],
+  "trained_at": "2026-11-12",
+  "selection": {
+    "val_macro_f1": 0.7914197364054512,
+    "val_macro_f1_worst": 0.7851794022496773,
+    "selection_metric": "val Macro F1 최저값 (원본, scheme 제거, https 추가, 정상 홈페이지 보강 val)",
+    "seed": 42,
+    "seed_mean": 0.7940177156641285,
+    "seed_std": 0.002710609814374575,
+    "selected_on": "val"
+  },
+  "notes": "ai_risk_score = 1 - P(benign). 모델 예측 점수이며 실제 피해 확률이 아님."
+}

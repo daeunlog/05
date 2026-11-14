@@ -1,0 +1,17 @@
+{
+  "t_low": 0.07695960929095891,
+  "t_high": 0.9717409955257184,
+  "t_low_raw": 0.07695960929095891,
+  "status": "overlap",
+  "benign_fpr_target": 0.01,
+  "malicious_recall_target": 0.99,
+  "fitted_on": "val",
+  "n_benign": 63589,
+  "n_malicious": 31333,
+  "achieved_on_val": {
+    "benign_in_danger": 0.009986003868593624,
+    "malicious_caution_or_above": 0.9900105320269365,
+    "benign_low": 0.4652848763150859,
+    "malicious_danger": 0.4895158459132544
+  }
+}

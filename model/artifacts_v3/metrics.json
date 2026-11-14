@@ -1,0 +1,304 @@
+{
+  "model": {
+    "normalization": "strip",
+    "kind": "mlp",
+    "seed": 42,
+    "val_macro_f1": 0.8217442425554294,
+    "val_macro_f1_worst": 0.8217442425554294,
+    "val_macro_f1_variants": {
+      "original": 0.8217442425554294,
+      "noscheme": 0.8217442425554294,
+      "https": 0.8217442425554294,
+      "home": 0.8259941714571699
+    },
+    "seed_mean": 0.827799992554338,
+    "seed_std": 0.005290473367975136
+  },
+  "thresholds": {
+    "t_low": 0.21896466103652568,
+    "t_high": 0.9853179642312456,
+    "t_low_raw": 0.21896466103652568,
+    "status": "overlap",
+    "benign_fpr_target": 0.01,
+    "malicious_recall_target": 0.99,
+    "fitted_on": "val",
+    "n_benign": 63589,
+    "n_malicious": 31333,
+    "achieved_on_val": {
+      "benign_in_danger": 0.009986003868593624,
+      "malicious_caution_or_above": 0.9900105320269365,
+      "benign_low": 0.6686691094371668,
+      "malicious_danger": 0.6947946254747391
+    }
+  },
+  "test": {
+    "n": 94921,
+    "accuracy": 0.8417420802562131,
+    "per_class": {
+      "benign": {
+        "precision": 0.9814761493425472,
+        "recall": 0.8040698863010898,
+        "f1": 0.8839597524290308,
+        "support": 63589
+      },
+      "phishing": {
+        "precision": 0.529923830250272,
+        "recall": 0.9025872933501371,
+        "f1": 0.6677819218955682,
+        "support": 13489
+      },
+      "malware": {
+        "precision": 0.8172386272944933,
+        "recall": 0.8660840146602763,
+        "f1": 0.8409526416643854,
+        "support": 3547
+      },
+      "defacement": {
+        "precision": 0.8402933134476759,
+        "recall": 0.9458589815332961,
+        "f1": 0.8899565618007108,
+        "support": 14296
+      }
+    },
+    "macro_f1": 0.8206627194474239,
+    "confusion_matrix": {
+      "labels": [
+        "benign",
+        "phishing",
+        "malware",
+        "defacement"
+      ],
+      "matrix": [
+        [
+          51130,
+          9931,
+          395,
+          2133
+        ],
+        [
+          704,
+          12175,
+          193,
+          417
+        ],
+        [
+          50,
+          405,
+          3072,
+          20
+        ],
+        [
+          211,
+          464,
+          99,
+          13522
+        ]
+      ],
+      "rows": "true",
+      "cols": "pred"
+    },
+    "benign_fpr": {
+      "argmax": 0.1959301136989102,
+      "threshold": 0.3314095205145544
+    },
+    "malicious_fnr": {
+      "argmax": 0.03079918294395506,
+      "threshold": 0.00995787054768288
+    },
+    "truncated_pct": 0.0442
+  },
+  "test_scheme_variants": {
+    "noscheme": {
+      "n": 94921,
+      "accuracy": 0.8417420802562131,
+      "macro_f1": 0.8206627194474239,
+      "benign_fpr": {
+        "argmax": 0.1959301136989102,
+        "threshold": 0.3314095205145544
+      },
+      "malicious_fnr": {
+        "argmax": 0.03079918294395506,
+        "threshold": 0.00995787054768288
+      }
+    },
+    "https": {
+      "n": 94921,
+      "accuracy": 0.8417420802562131,
+      "macro_f1": 0.8206627194474239,
+      "benign_fpr": {
+        "argmax": 0.1959301136989102,
+        "threshold": 0.3314095205145544
+      },
+      "malicious_fnr": {
+        "argmax": 0.03079918294395506,
+        "threshold": 0.00995787054768288
+      }
+    }
+  },
+  "phiusiil": {
+    "strip": {
+      "n": 198471,
+      "n_benign": 125007,
+      "n_malicious": 73464,
+      "auroc": 0.4250219213031704,
+      "benign_fpr": {
+        "argmax": 0.9858807906757222,
+        "threshold": 0.9971921572391946
+      },
+      "malicious_fnr": {
+        "argmax": 0.07127300446477186,
+        "threshold": 0.03220625068060547
+      },
+      "role": "selected"
+    }
+  },
+  "external": {
+    "openphish": {
+      "n": 275,
+      "label": "phishing",
+      "malicious_fnr": {
+        "argmax": {
+          "value": 0.11272727272727273,
+          "ci95": [
+            0.08056069367724956,
+            0.15556437574089865
+          ]
+        },
+        "threshold": {
+          "value": 0.06181818181818182,
+          "ci95": [
+            0.0389509519015554,
+            0.09675863368423673
+          ]
+        }
+      },
+      "type_match_rate": {
+        "value": 0.8654545454545455,
+        "ci95": [
+          0.8200524927959258,
+          0.900787230429202
+        ]
+      }
+    },
+    "tranco": {
+      "n": 9093,
+      "label": "benign",
+      "benign_fpr": {
+        "argmax": {
+          "value": 0.0704937864291213,
+          "ci95": [
+            0.06541180913341456,
+            0.07593851170502176
+          ]
+        },
+        "threshold": {
+          "value": 0.18904651930056088,
+          "ci95": [
+            0.1811306650308067,
+            0.19722499549170738
+          ]
+        }
+      }
+    }
+  },
+  "external_note": "출처마다 클래스가 하나뿐이라 Precision·Macro F1·Accuracy는 산출하지 않음. defacement 외부 평가 없음.",
+  "comparison": [
+    {
+      "모델": "제공 헤드(기준선, 부풀려졌을 수 있음)",
+      "Accuracy": 0.9907291326471487,
+      "Macro F1": 0.9808495115019511,
+      "정상 오탐률(argmax)": 0.004796427054993788,
+      "악성 미탐률(argmax)": 0.008840801736244096
+    },
+    {
+      "모델": "우리 헤드",
+      "Accuracy": 0.8417420802562131,
+      "Macro F1": 0.8206627194474239,
+      "정상 오탐률(argmax)": 0.1959301136989102,
+      "악성 미탐률(argmax)": 0.03079918294395506
+    }
+  ],
+  "test_homepage": {
+    "n": 24458,
+    "benign_fpr": {
+      "argmax": 0.026576171395862293,
+      "threshold": 0.08757870635374929
+    },
+    "test_plus_home": {
+      "n": 119379,
+      "accuracy": 0.8687206292564019,
+      "macro_f1": 0.8248980357167879,
+      "benign_fpr": {
+        "argmax": 0.14888639022340341,
+        "threshold": 0.2636773541404023
+      },
+      "malicious_fnr": {
+        "argmax": 0.03079918294395506,
+        "threshold": 0.00995787054768288
+      }
+    }
+  },
+  "path_profile": {
+    "malicious_urls": {
+      "benign": {
+        "rows": 423928,
+        "homepage_pct": 11.18,
+        "query_pct": 16.98,
+        "median_len": 46.0
+      },
+      "defacement": {
+        "rows": 95308,
+        "homepage_pct": 0.0,
+        "query_pct": 56.62,
+        "median_len": 81.0
+      },
+      "malware": {
+        "rows": 23645,
+        "homepage_pct": 4.28,
+        "query_pct": 5.8,
+        "median_len": 37.0
+      },
+      "phishing": {
+        "rows": 89931,
+        "homepage_pct": 25.87,
+        "query_pct": 8.16,
+        "median_len": 34.0
+      }
+    },
+    "phiusiil": {
+      "benign": {
+        "rows": 125007,
+        "homepage_pct": 100.0,
+        "query_pct": 0.0,
+        "median_len": 27.0
+      },
+      "phishing": {
+        "rows": 73464,
+        "homepage_pct": 69.19,
+        "query_pct": 6.61,
+        "median_len": 32.0
+      }
+    }
+  },
+  "augment": {
+    "train": 35659,
+    "val": 24439,
+    "test": 24458,
+    "excluded_rule": "악성 URL에 나온 호스트 제외, 이미 있는 URL 제외"
+  },
+  "latency": {
+    "device": "cpu",
+    "threads": 2,
+    "single_url_ms_p50": 5.16409249996741,
+    "single_url_ms_p95": 6.669635950018458,
+    "n_single": 200,
+    "batch_urls_per_sec": 1176.2022501457946,
+    "n_batch": 2000,
+    "note": "Kaggle CPU 기준. 실제 서버 사양에 따라 달라짐. 외부 검사(VirusTotal) 시간은 포함하지 않음."
+  },
+  "parity": {
+    "n": 500,
+    "argmax_agreement": 1.0,
+    "max_abs_prob_diff": 0.0021101378705801754
+  }
+}
