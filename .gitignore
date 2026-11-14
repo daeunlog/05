@@ -28,4 +28,4 @@ Thumbs.db
 *.safetensors
 
 # Work history
-work_history/
+work_history.md
