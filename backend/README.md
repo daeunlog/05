@@ -23,7 +23,9 @@ powershell -ExecutionPolicy Bypass -File .\setup.ps1
 | `DATABASE_URL` | 기본 `sqlite:///./qrsafe.db`. 시작 시 필요한 테이블 생성 |
 | `APP_ENV`, `APP_NAME` | 기본 설정은 `development`, `QRSafe API` |
 
-모델 팀이 같은 저장소의 커밋 `7be5b747b6d98ea0e6807183bd82662bd0d5006e`에서 관리하는 `model/artifacts` 버전을 사용한다. `setup.ps1`은 `prepare_model.py`로 해당 Git 객체에서 추론 패키지를 `backend/qsing_model/`에, `model_config.json`, `thresholds.json`, `head.npz`, `encoder/`를 `backend/model/artifacts/`에 설치한다. 모델 파일의 별도 전달은 필요 없다. 서버 시작 시 워커당 한 번 CPU에 로드하고, 원문 URL을 `predict(url)`에 전달한다. 모델의 `strip` 전처리와 임계값을 그대로 사용한다. Transformers에서 BOS/EOS 토큰 ID 범위 경고가 발생한다.
+모델 팀 커밋 `7be5b747b6d98ea0e6807183bd82662bd0d5006e`의 `model/artifacts_v5`를 사용한다. `setup.ps1`은 추론 패키지를 `backend/qsing_model/`에, v5 가중치·토크나이저·전처리 설정·분류 헤드·임계값을 `backend/model/artifacts/`에 설치한다. 별도로 받을 파일은 없다. 서버는 워커당 한 번 CPU에 로드하고 원문 URL을 `predict(url)`에 전달한다. v5의 `model_version`은 `urlbert-tiny-v6@020744435b3b+head-mlp-strip2-2026-11-12`, `normalization`은 `strip2`다. Transformers는 인코더 BOS/EOS 토큰 ID 범위 경고를 출력한다.
+
+**기존 v3 설치 갱신:** 서버를 종료한 뒤 `feature/backend`에서 `git pull --ff-only`를 실행한다. `backend`에서 위 `setup.ps1` 명령을 다시 실행하고 서버를 시작한다. 설치기는 기존 배포본을 확인한 뒤 갱신한다. `MODEL_ARTIFACTS_DIR`를 별도로 지정했다면 해당 값을 기본 설치 폴더로 변경하거나 해제해야 새 모델을 로드한다.
 
 ## 기존 Android 규격에서 달라진 점 (bbfd93c 기준)
 
@@ -68,13 +70,13 @@ Invoke-RestMethod "$base/api/scans/$($scan.scan_id)/reports" -Method Post -Heade
   "scan_id":"3f619f12-8843-4e44-98aa-b5b3b43b472a",
   "url":"https://example.com/",
   "model":{
-    "prediction":"benign","confidence":0.986445,"is_mock":false,
-    "scores":{"benign":0.986445,"phishing":0.006667,"malware":0.006862,"defacement":0.000025},
-    "ai_risk_score":0.013555,"ai_risk_level":"low","truncated":false,
-    "model_version":"urlbert-tiny-v6@020744435b3b+head-mlp-strip-2026-11-12"
+    "prediction":"benign","confidence":0.905677,"is_mock":false,
+    "scores":{"benign":0.905677,"phishing":0.080441,"malware":0.013880,"defacement":0.000002},
+    "ai_risk_score":0.094323,"ai_risk_level":"caution","truncated":false,
+    "model_version":"urlbert-tiny-v6@020744435b3b+head-mlp-strip2-2026-11-12"
   },
   "virustotal":{"status":"skipped","stats":null,"last_analysis_date":null,"error_code":null},
-  "risk_level":"unknown","is_complete":false,"cached":false
+  "risk_level":"caution","is_complete":false,"cached":false
 }
 ```
 
@@ -106,7 +108,7 @@ Invoke-RestMethod "$base/api/scans/$($scan.scan_id)/reports" -Method Post -Heade
 조회는 현재 토큰 소유자의 최신순이며 limit 기본 20(1~100), offset 기본 0(0 이상)이다. 원문 URL과 해시는 응답에서 제외한다. 서버는 URL 원문 대신 정규화된 URL의 HMAC만 저장한다.
 
 ```json
-{"total":1,"items":[{"scan_id":"3f619f12-8843-4e44-98aa-b5b3b43b472a","created_at":"2026-11-19T02:00:00Z","model_status":"completed","model_prediction":"benign","model_confidence":0.986445,"model_is_mock":false,"virustotal_status":"skipped","virustotal_stats":null,"risk_level":"unknown","is_complete":false}]}
+{"total":1,"items":[{"scan_id":"3f619f12-8843-4e44-98aa-b5b3b43b472a","created_at":"2026-11-19T02:00:00Z","model_status":"completed","model_prediction":"benign","model_confidence":0.905677,"model_is_mock":false,"virustotal_status":"skipped","virustotal_stats":null,"risk_level":"caution","is_complete":false}]}
 ```
 
 신고 종류는 `false_positive`(오탐) 또는 `suspicious`(의심 URL)이다. URL·자유 텍스트는 받지 않는다. 같은 검사·종류를 재전송해도 신고는 한 건이다.
