@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./qrsafe.db"
     VIRUSTOTAL_API_KEY: str = ""
     CACHE_HASH_SECRET: str = ""
-    USE_MOCK_MODEL: bool = True
+    MODEL_ARTIFACTS_DIR: Path = BACKEND_DIR / "model" / "artifacts"
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

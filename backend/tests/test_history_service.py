@@ -35,7 +35,8 @@ COMPLETED_REPORT = {
     "last_analysis_date": 1_700_000_000,
     "error_code": None,
 }
-client = TestClient(app)
+pytestmark = pytest.mark.usefixtures("stub_prediction")
+client = TestClient(app, headers={"Authorization": "Bearer " + "ab" * 32})
 
 
 @pytest.fixture(autouse=True)
@@ -97,11 +98,11 @@ def test_scan_result_is_saved_with_response_scan_id(
     assert history.model_status == "completed"
     assert history.model_prediction == "benign"
     assert history.model_confidence == 0.85
-    assert history.model_is_mock is True
+    assert history.model_is_mock is False
     assert history.virustotal_status == "completed"
     assert history.virustotal_stats == STATS
-    assert history.risk_level == "unknown"
-    assert history.is_complete is False
+    assert history.risk_level == "danger"
+    assert history.is_complete is True
     assert history.created_at.replace(tzinfo=timezone.utc) <= datetime.now(timezone.utc)
 
 
@@ -157,15 +158,11 @@ def test_raw_url_and_secrets_are_not_stored(database) -> None:
     assert "api_key" not in row
 
 
-def test_history_database_failure_rolls_back() -> None:
+def test_history_database_failure_rolls_back(model_result) -> None:
     result = ScanResponse(
         scan_id="3f619f12-8843-4e44-98aa-b5b3b43b472a",
         url=TEST_URL,
-        model=ModelResult(
-            prediction="benign",
-            confidence=0.85,
-            is_mock=True,
-        ),
+        model=model_result,
         virustotal=VirusTotalResult(),
         risk_level="unknown",
         is_complete=False,
@@ -175,7 +172,7 @@ def test_history_database_failure_rolls_back() -> None:
     db.commit.side_effect = OperationalError("commit failed", {}, Exception())
 
     with pytest.raises(OperationalError):
-        history_service.save_scan_history(db, TEST_URL, result)
+        history_service.save_scan_history(db, TEST_URL, result, "owner")
 
     db.rollback.assert_called_once_with()
 
@@ -184,6 +181,7 @@ def test_application_lifespan_initializes_database_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = []
+    monkeypatch.setattr(main_module.model_service, "load_model", lambda: None)
     monkeypatch.setattr(main_module, "init_db", lambda: calls.append("init"))
 
     async def run_lifespan() -> None:

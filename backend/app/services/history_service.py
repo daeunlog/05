@@ -3,12 +3,12 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import ScanHistory
+from app.db.models import ScanHistory, ScanOwner
 from app.schemas.scan import ScanResponse
 from app.services.cache_service import generate_cache_key
 
 
-def save_scan_history(db: Session, url: str, result: ScanResponse) -> None:
+def save_scan_history(db: Session, url: str, result: ScanResponse, owner: str) -> None:
     """Persist one scan response without storing the original URL or secrets."""
     try:
         history = ScanHistory(
@@ -29,6 +29,8 @@ def save_scan_history(db: Session, url: str, result: ScanResponse) -> None:
             is_complete=result.is_complete,
         )
         db.add(history)
+        db.flush()
+        db.add(ScanOwner(scan_id=history.scan_id, owner=owner))
         db.commit()
     except Exception:
         db.rollback()
@@ -39,13 +41,15 @@ def get_scan_history(
     db: Session,
     limit: int,
     offset: int,
+    owner: str,
 ) -> tuple[int, list[ScanHistory]]:
     """Return the total count and a newest-first page of scan history."""
     try:
-        total = db.scalar(select(func.count()).select_from(ScanHistory)) or 0
+        scoped = select(ScanHistory).join(ScanOwner).where(ScanOwner.owner == owner)
+        total = db.scalar(select(func.count()).select_from(scoped.subquery())) or 0
         records = list(
             db.scalars(
-                select(ScanHistory)
+                scoped
                 .order_by(
                     ScanHistory.created_at.desc(),
                     ScanHistory.scan_id.desc(),

@@ -8,11 +8,13 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.database import Base, get_db
-from app.db.models import ScanHistory
+from app.db.models import ScanHistory, ScanOwner
+from app.core.identity import owner_id
 from app.main import app
 
 
-client = TestClient(app)
+auth = "Bearer " + "ab" * 32
+client = TestClient(app, headers={"Authorization": auth})
 
 
 def make_history(index: int, created_at: datetime) -> ScanHistory:
@@ -53,6 +55,14 @@ def history_database(tmp_path):
     def provide_test_db():
         with session_factory() as db:
             yield db
+
+    # Link the synthetic scans seeded below to this installation.
+    from sqlalchemy import event
+    @event.listens_for(session_factory, "before_flush")
+    def add_owners(db, *_):
+        for row in list(db.new):
+            if isinstance(row, ScanHistory):
+                db.add(ScanOwner(scan_id=row.scan_id, owner=owner_id(auth)))
 
     app.dependency_overrides[get_db] = provide_test_db
     yield session_factory

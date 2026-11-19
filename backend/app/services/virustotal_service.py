@@ -96,7 +96,7 @@ async def get_url_report(url: str) -> URLReport:
             "undetected": raw_stats["undetected"],
             "timeout": raw_stats["timeout"],
         }
-        if any(isinstance(value, bool) or not isinstance(value, int) for value in stats.values()):
+        if any(type(value) is not int or value < 0 for value in stats.values()):
             raise TypeError
 
         last_analysis_date = attributes.get("last_analysis_date")

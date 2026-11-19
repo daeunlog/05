@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -33,6 +33,19 @@ class ScanHistory(Base):
     virustotal_stats: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     risk_level: Mapped[str] = mapped_column(String(32), nullable=False)
     is_complete: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class ScanOwner(Base):
+    __tablename__ = "scan_owner"
+    scan_id: Mapped[str] = mapped_column(ForeignKey("scan_history.scan_id"), primary_key=True)
+    owner: Mapped[str] = mapped_column(String(64), index=True)
+
+
+class ScanReport(Base):
+    __tablename__ = "scan_report"
+    scan_id: Mapped[str] = mapped_column(ForeignKey("scan_history.scan_id"), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(default=_utc_now)
 
 
 class VTCache(Base):

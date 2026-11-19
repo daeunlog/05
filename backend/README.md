@@ -1,382 +1,137 @@
-# QRSafe Backend API
+# QRSafe Android 백엔드
 
-QRSafe 백엔드는 QR 코드에서 추출한 URL을 검사하기 위한 FastAPI 서비스입니다. 목표 AI 모델은 [`CrabInHoney/urlbert-tiny-v6`](https://huggingface.co/CrabInHoney/urlbert-tiny-v6)의 `malicious_urls_4class` 분류 head를 이용한 4종 URL 분류입니다. 현재는 실제 URLBERT 모델 대신 고정 결과를 반환하는 Mock 모델을 사용하며, 선택적으로 VirusTotal API v3의 기존 URL 분석 결과를 조회합니다.
+Android에서 QR을 해독한 뒤 **읽은 URL 문자열 그대로** JSON에 넣는다. FastAPI는 CPU에서 학습된 4종 분류기를 실행하고, 동의가 있으면 VirusTotal 기존 보고서를 확인한다. 대상 사이트 방문, 리디렉션 추적, 신규 분석 제출은 하지 않는다.
 
-> 현재 `model.prediction="benign"`은 Mock 결과일 뿐 실제 안전 판정이 아닙니다. 최종 위험도 결합 로직이 아직 없으므로 `risk_level`은 항상 `unknown`, `is_complete`는 항상 `false`입니다.
+## Windows PowerShell 빠른 시작
 
-## 목차
-
-1. [기술 스택](#기술-스택)
-2. [목표 AI 모델과 판정 계획](#목표-ai-모델과-판정-계획)
-3. [Windows PowerShell에서 실행](#windows-powershell에서-실행)
-4. [환경변수](#환경변수)
-5. [API 공통 정보](#api-공통-정보)
-6. [GET /health](#get-health)
-7. [POST /api/scan](#post-apiscan)
-8. [GET /api/history](#get-apihistory)
-9. [HTTP 상태 코드와 오류 처리](#http-상태-코드와-오류-처리)
-10. [Android에서 접속](#android에서-접속)
-11. [Swagger UI](#swagger-ui)
-12. [현재 구현 상태](#현재-구현-상태)
-
-## 기술 스택
-
-- FastAPI 및 Uvicorn
-- Pydantic v2, pydantic-settings
-- SQLAlchemy ORM, SQLite
-- httpx 비동기 HTTP 클라이언트
-- pytest
-
-SQLite에는 VirusTotal 캐시(`vt_cache`)와 검사 이력(`scan_history`)을 저장합니다. 검사 이력에는 원본 URL 대신 서버 비밀키 기반 HMAC-SHA256 해시만 저장됩니다.
-
-## 목표 AI 모델과 판정 계획
-
-제안서의 실제 AI 목표는 `CrabInHoney/urlbert-tiny-v6`와 이 모델 저장소의 `malicious_urls_4class` 분류 head를 이용해 URL을 `benign`, `defacement`, `phishing`, `malware`의 4종으로 분류하는 것입니다. 현재 백엔드에는 PyTorch, Transformers 또는 해당 모델이 연결되어 있지 않으며, API는 고정된 `benign`, `0.85`, `is_mock=true`만 반환합니다.
-
-향후 모델의 4종 softmax 확률이 제공되면 모델 기반 위험 신호를 다음과 같이 계산할 계획입니다.
-
-```text
-model_risk = 1 - P(benign)
-```
-
-이 값과 VirusTotal의 `malicious`, `suspicious`, `harmless`, `undetected`, `timeout` 통계에서 얻은 탐지 신호를 결합해 최종 `risk_level`을 산출할 예정입니다. 결합 가중치, 임계값, VirusTotal 결과가 없을 때의 정책은 아직 확정·구현되지 않았습니다. 따라서 현재 응답의 `risk_level="unknown"`과 `is_complete=false`는 최종 판정이 완료되지 않았다는 뜻이며 안전 판정을 의미하지 않습니다.
-
-URLBERT는 **URL 문자열 자체**를 분석하는 모델입니다. 실제 웹페이지 본문, HTML/DOM, 다운로드 파일, 실행 동작을 검사하지 않으며 HTTP 요청을 따라간 뒤의 리디렉션 최종 목적지도 확인하지 않습니다. 이 한계 때문에 향후에도 모델 결과만으로 안전을 확정해서는 안 되며, 별도의 동적 분석이나 리디렉션 검사 기능이 필요합니다. 현재 백엔드 역시 검사 대상 URL에 직접 접속하지 않습니다.
-
-## Windows PowerShell에서 실행
-
-저장소 루트에서 다음 명령을 실행합니다.
+Windows x64에서 Git, Python 3.11과 `py` 런처가 필요하다. 처음 설치할 때는 인터넷과 저장소 읽기 권한이 필요하다.
 
 ```powershell
-cd backend
-
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-
-Copy-Item .env.example .env
-# .env를 열어 아래 환경변수를 설정합니다.
-
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+git clone --branch feature/backend https://github.com/daeunlog/05.git qrsafe
+cd qrsafe/backend
+powershell -ExecutionPolicy Bypass -File .\setup.ps1
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-PowerShell 실행 정책 때문에 가상환경 활성화가 차단되는 경우 현재 터미널에만 다음 설정을 적용할 수 있습니다.
+설치 스크립트는 가상환경과 패키지를 준비하고 처음에만 `.env.example`로부터 임의의 서버 HMAC 키가 든 `.env`를 생성한다. 재시작 시 같은 키를 유지한다. 기존 환경을 쓰는 경우 `CACHE_HASH_SECRET`이 비어 있으면 설정해야 검사 이력이 저장된다.
+
+| 서버 설정 | 용도 |
+|---|---|
+| `MODEL_ARTIFACTS_DIR` | 기본값은 이 프로젝트의 `backend/model/artifacts`. 다른 위치라면 절대경로 지정 |
+| `VIRUSTOTAL_API_KEY` | 선택. 비어 있으면 캐시 미스 시 `disabled` |
+| `CACHE_HASH_SECRET` | 이력 및 캐시 URL의 HMAC-SHA256 키. 서버에만 보관 |
+| `DATABASE_URL` | 기본 `sqlite:///./qrsafe.db`. 시작 시 필요한 테이블 생성 |
+| `APP_ENV`, `APP_NAME` | 기본 설정은 `development`, `QRSafe API` |
+
+모델 팀이 같은 저장소의 커밋 `7be5b747b6d98ea0e6807183bd82662bd0d5006e`에서 관리하는 `model/artifacts` 버전을 사용한다. `setup.ps1`은 `prepare_model.py`로 해당 Git 객체에서 추론 패키지를 `backend/qsing_model/`에, `model_config.json`, `thresholds.json`, `head.npz`, `encoder/`를 `backend/model/artifacts/`에 설치한다. 모델 파일의 별도 전달은 필요 없다. 서버 시작 시 워커당 한 번 CPU에 로드하고, 원문 URL을 `predict(url)`에 전달한다. 모델의 `strip` 전처리와 임계값을 그대로 사용한다. Transformers에서 BOS/EOS 토큰 ID 범위 경고가 발생한다.
+
+## 기존 Android 규격에서 달라진 점 (bbfd93c 기준)
+
+| 항목 | 이전 | 현재 |
+|---|---|---|
+| 경로·요청 | `GET /health`, `POST /api/scan`, `GET /api/history` | 세 경로와 검사 요청 필드는 동일. `POST /api/scans/{scan_id}/reports` 추가 |
+| 인증·이력 | 인증 없이 전체 조회 | 검사·이력·신고에 설치별 Bearer 토큰 필수(누락 시 401). 본인 이력만 조회. health는 공개 |
+| model | benign, confidence=0.85, is_mock=true | 4종 prediction, 예측 클래스 confidence, is_mock=false. scores·ai_risk_score·ai_risk_level·truncated·model_version 추가 |
+| 최종 판정·VT | unknown / false 고정 | 통합 판정표에 따라 risk_level·is_complete 결정. 민감 URL에는 VT 상태 withheld 추가 |
+| 상태·검증 | health.status=ok, 검증 오류에 입력 포함 가능 | health에 model_status 추가, 모델 로드 실패 시 degraded. 422 detail 배열에 type·loc만 전달(모델이 입력을 거부하면 detail 문자열) |
+
+[Swagger UI](http://127.0.0.1:8000/docs) · [OpenAPI JSON](http://127.0.0.1:8000/openapi.json) · [ReDoc](http://127.0.0.1:8000/redoc)
+
+## Android 연결과 소유권
+
+- Emulator 기본 주소는 `http://10.0.2.2:8000`. PC 자체 테스트는 `http://127.0.0.1:8000`. `GET /health`의 `model_status`가 `ready`면 모델 로딩 완료다.
+- 실기기는 같은 신뢰된 LAN에서만 서버를 `--host 0.0.0.0`으로 실행하고 `http://<PC의 IPv4>:8000`을 사용한다. 방화벽 TCP 8000 허용 범위를 테스트 기기로 제한한다. 앱은 INTERNET 권한과 로컬 HTTP용 debug 네트워크 설정이 필요하다. 외부 배포에는 HTTPS가 필요하다.
+- 앱은 최초 설치 시 암호학적 난수 32바이트를 **64자리 hex**로 인코딩해 기기의 보안 저장소에 보관한다. 모든 검사·조회·신고 요청에 `Authorization: Bearer <설치 토큰>`을 넣는다. 설치별 접근권한이며 이 토큰 소지자는 그 설치의 이력을 볼 수 있다. 서버에는 토큰 다이제스트만 저장한다. 토큰을 잃으면 기존 이력에 접근할 수 없다. 소유자 식별 전 생성된 과거 행은 어떤 설치에도 공개하지 않는다.
+- JSON 본문에는 `Content-Type: application/json`을 사용한다. API 키와 HMAC 키는 앱으로 전달하지 않는다.
+
+## 복사해서 검사 → 조회 → 신고하기
+
+서버가 실행된 상태에서 다른 PowerShell 창을 열고 `backend`에서 실행한다. 같은 설치를 재현할 때는 같은 토큰을 사용한다.
 
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
+$base = 'http://127.0.0.1:8000'
+$token = .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_hex(32))"
+$headers = @{ Authorization = "Bearer $token" }
+Invoke-RestMethod "$base/health"
+$scan = Invoke-RestMethod "$base/api/scan" -Method Post -Headers $headers -ContentType 'application/json' -Body '{"url":"https://example.com/","allow_external_lookup":false}'
+$scan | ConvertTo-Json -Depth 5
+Invoke-RestMethod "$base/api/history?limit=20&offset=0" -Headers $headers | ConvertTo-Json -Depth 5
+Invoke-RestMethod "$base/api/scans/$($scan.scan_id)/reports" -Method Post -Headers $headers -ContentType 'application/json' -Body '{"kind":"false_positive"}'
 ```
 
-서버 시작 시 SQLAlchemy 테이블이 자동으로 생성됩니다. 기본 SQLite 파일은 `backend/qrsafe.db`이며 Git에서 제외됩니다.
+### POST /api/scan
 
-테스트 실행:
-
-```powershell
-python -m pytest -q
-```
-
-## 환경변수
-
-`backend/.env.example`을 `backend/.env`로 복사한 뒤 값을 설정합니다. `.env`와 실제 비밀값을 Git에 커밋하면 안 됩니다.
-
-```dotenv
-APP_NAME=QRSafe API
-APP_ENV=development
-
-DATABASE_URL=sqlite:///./qrsafe.db
-
-VIRUSTOTAL_API_KEY=
-CACHE_HASH_SECRET=
-USE_MOCK_MODEL=true
-```
-
-| 변수 | 기본값 | 설명 |
-| --- | --- | --- |
-| `APP_NAME` | `QRSafe API` | 설정 객체에 로드되는 앱 이름. 현재 FastAPI 제목도 같은 문자열로 고정되어 있음 |
-| `APP_ENV` | `development` | 설정 객체에 로드되는 환경 이름. 현재 환경별 분기 로직은 없음 |
-| `DATABASE_URL` | `sqlite:///./qrsafe.db` | SQLAlchemy DB 연결 URL |
-| `VIRUSTOTAL_API_KEY` | 빈 문자열 | VirusTotal API 키. 비어 있으면 외부 조회 결과가 `disabled`가 될 수 있음 |
-| `CACHE_HASH_SECRET` | 빈 문자열 | URL 캐시 키와 이력 해시를 만드는 HMAC 비밀키. **실제 검사 요청 전에 반드시 설정** |
-| `USE_MOCK_MODEL` | `true` | Mock 모델 사용 설정. 현재 구현은 이 값과 무관하게 실제 모델을 로드하지 않음 |
-
-`CACHE_HASH_SECRET`에는 충분히 긴 무작위 값을 사용하세요. 안전하지 않은 공통 기본값은 제공되지 않으며, 비어 있으면 캐시 및 이력 저장 과정에서 설정 오류가 발생합니다. 로컬에서 값을 생성하는 한 가지 방법은 다음과 같습니다.
-
-```powershell
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-출력된 값은 개발자가 자신의 `.env`에만 저장해야 합니다. 이 문서나 소스 코드에 실제 VirusTotal API 키 또는 HMAC 비밀키를 기록하지 마세요.
-
-## API 공통 정보
-
-로컬 기본 주소:
-
-```text
-http://127.0.0.1:8000
-```
-
-요청과 응답 본문은 JSON입니다. 날짜는 UTC ISO 8601 형식, `last_analysis_date`는 VirusTotal이 반환한 Unix timestamp입니다.
-
-## GET /health
-
-서버 실행 상태를 확인합니다.
-
-요청:
-
-```powershell
-Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/health"
-```
-
-성공 응답 (`200 OK`):
+요청의 `url`은 HTTP(S) 문자열이다. `allow_external_lookup` 기본값은 false. 성공 응답 예시(점수는 표시용 반올림):
 
 ```json
 {
-  "status": "ok",
-  "service": "qrsafe-backend",
-  "version": "0.1.0"
-}
-```
-
-## POST /api/scan
-
-HTTP 또는 HTTPS URL을 검사하고 요청마다 새로운 `scan_id`를 생성합니다. 요청 결과는 `scan_history`에 저장됩니다.
-
-### 요청
-
-```json
-{
-  "url": "https://example.com/login",
-  "allow_external_lookup": false
-}
-```
-
-| 필드 | 타입 | 필수 | 설명 |
-| --- | --- | --- | --- |
-| `url` | string | 예 | HTTP/HTTPS URL. 다른 스킴이나 잘못된 URL은 `422` |
-| `allow_external_lookup` | boolean | 아니요 | 기본값 `false`. VirusTotal 및 캐시 조회 허용 여부 |
-
-`allow_external_lookup` 동작:
-
-- `false`: VirusTotal과 캐시를 조회하지 않고 `virustotal.status="skipped"`, `cached=false`를 반환합니다. 검사 이력은 저장합니다.
-- `true`: 유효한 SQLite 캐시를 먼저 확인합니다. 적중하면 외부 API를 호출하지 않고 `cached=true`를 반환합니다.
-- 캐시가 없거나 만료되면 VirusTotal의 **기존 분석 결과 조회 API**를 호출합니다. 완료된 결과만 24시간 캐시하며, 이번 응답은 새 외부 조회 결과이므로 `cached=false`입니다. 24시간 TTL은 현재 개발 버전의 임시 정책으로 운영 정책이 확정된 값이 아닙니다.
-- 이 API는 URL을 VirusTotal에 새 분석 대상으로 제출하지 않습니다.
-
-PowerShell 요청 예시:
-
-```powershell
-$body = @{
-    url = "https://example.com/login"
-    allow_external_lookup = $true
-} | ConvertTo-Json
-
-Invoke-RestMethod `
-    -Method Post `
-    -Uri "http://127.0.0.1:8000/api/scan" `
-    -ContentType "application/json" `
-    -Body $body
-```
-
-외부 조회를 비활성화한 성공 응답 예시 (`200 OK`):
-
-```json
-{
-  "scan_id": "3f619f12-8843-4e44-98aa-b5b3b43b472a",
-  "url": "https://example.com/login",
-  "model": {
-    "prediction": "benign",
-    "confidence": 0.85,
-    "is_mock": true
+  "scan_id":"3f619f12-8843-4e44-98aa-b5b3b43b472a",
+  "url":"https://example.com/",
+  "model":{
+    "prediction":"benign","confidence":0.986445,"is_mock":false,
+    "scores":{"benign":0.986445,"phishing":0.006667,"malware":0.006862,"defacement":0.000025},
+    "ai_risk_score":0.013555,"ai_risk_level":"low","truncated":false,
+    "model_version":"urlbert-tiny-v6@020744435b3b+head-mlp-strip-2026-11-12"
   },
-  "virustotal": {
-    "status": "skipped",
-    "stats": null,
-    "last_analysis_date": null,
-    "error_code": null
-  },
-  "risk_level": "unknown",
-  "is_complete": false,
-  "cached": false
+  "virustotal":{"status":"skipped","stats":null,"last_analysis_date":null,"error_code":null},
+  "risk_level":"unknown","is_complete":false,"cached":false
 }
 ```
 
-VirusTotal 통계가 있는 경우 `stats` 형식:
+`confidence`는 예측 클래스의 점수, `scores`는 클래스별 점수, `ai_risk_score`는 모델이 반환한 **1 − P(benign)**이다. 모두 **0~1**이며 UI에서 백분율로 표시할 때만 100을 곱한다. 실제 피해 확률을 뜻하지 않는다. `ai_risk_level`은 모델 단독 등급이고 앱에 표시하는 통합 등급은 최상위 `risk_level`이다.
+
+### 외부 조회와 통합 판정
+
+동의가 없으면 `skipped`. 동의해도 사용자 정보, 쿼리, fragment, IP, 내부 호스트 또는 토큰을 포함할 수 있는 경로 등은 보수적으로 `withheld` 처리한다. 허용 범위는 공개 접미사의 기본 도메인 또는 www, 기본/80/443 포트, 빈 경로·`/`·`/login`·`/login/`이다. 허용 URL은 로컬 캐시를 먼저 읽고 미스 시 서버 키로 VirusTotal의 기존 URL 보고서만 조회한다(타임아웃 10초). 완료 결과만 개발 정책상 24시간 캐싱한다. 적중 시에만 `cached=true`. 조회 승인 시 URL이 외부 사업자에게 전달될 수 있다.
+
+다음은 위에서 아래로 적용하는 서버의 표시 정책이다. VT 완료는 통계가 있는 `completed`를 뜻한다.
+
+| 조건 | 표시 등급 | is_complete |
+|---|---|---|
+| AI danger 또는 VT malicious ≥ 1 | danger | VT 완료 여부 |
+| AI caution 또는 VT suspicious ≥ 1 | caution | VT 완료 여부 |
+| AI low, 입력 잘림 없음, VT 완료 및 harmless ≥ 1 | low | true |
+| 나머지(미조회·실패·결과 부족 등) | unknown | false |
+
+`virustotal.stats`에는 malicious, suspicious, harmless, undetected, timeout 엔진 수가 들어간다. `last_analysis_date`는 Unix 초 또는 null. 외부 조회 실패도 이력 저장 성공 시 HTTP 200 안에서 표현된다.
+
+| VT status | error_code |
+|---|---|
+| skipped / withheld / completed | null |
+| disabled / not_found / rate_limited / timeout | missing_api_key / not_found / rate_limited / request_timeout (각각) |
+| error | authentication_error, permission_error, http_error, network_error, invalid_response, cache_error |
+
+### GET /api/history · POST /api/scans/{scan_id}/reports
+
+조회는 현재 토큰 소유자의 최신순이며 limit 기본 20(1~100), offset 기본 0(0 이상)이다. 원문 URL과 해시는 응답에서 제외한다. 서버는 URL 원문 대신 정규화된 URL의 HMAC만 저장한다.
 
 ```json
-{
-  "malicious": 1,
-  "suspicious": 0,
-  "harmless": 82,
-  "undetected": 10,
-  "timeout": 0
-}
+{"total":1,"items":[{"scan_id":"3f619f12-8843-4e44-98aa-b5b3b43b472a","created_at":"2026-11-19T02:00:00Z","model_status":"completed","model_prediction":"benign","model_confidence":0.986445,"model_is_mock":false,"virustotal_status":"skipped","virustotal_stats":null,"risk_level":"unknown","is_complete":false}]}
 ```
 
-`virustotal.status` 값:
-
-| 값 | 의미 |
-| --- | --- |
-| `skipped` | 외부 조회가 비활성화됨 |
-| `completed` | 기존 VirusTotal 분석 결과 조회 성공 |
-| `not_found` | VirusTotal에 기존 분석 결과가 없음 |
-| `rate_limited` | VirusTotal 요청 한도 초과 |
-| `timeout` | VirusTotal 요청 시간 초과 |
-| `error` | 캐시, 인증, 네트워크, HTTP 또는 응답 형식 오류 |
-| `disabled` | VirusTotal API 키가 설정되지 않음 |
-
-`error_code`는 `missing_api_key`, `not_found`, `rate_limited`, `request_timeout`, `authentication_error`, `permission_error`, `http_error`, `network_error`, `invalid_response`, `cache_error` 중 하나이거나 `null`입니다.
-
-VirusTotal 조회 실패나 결과 미존재는 안전 판정으로 취급되지 않습니다. 또한 현재 Mock 모델의 `benign` 결과만으로 최종 판정을 완료하지 않으므로 다음 값은 고정입니다.
-
-- `risk_level="unknown"`: 최종 위험도 결합 로직이 아직 구현되지 않음
-- `is_complete=false`: 실제 AI 모델과 최종 판정 파이프라인이 완료되지 않음
-
-## GET /api/history
-
-저장된 검사 이력을 최신순으로 조회합니다. 동일한 생성 시각이면 `scan_id` 내림차순으로 정렬됩니다.
-
-> **보안 주의:** 현재 사용자 인증과 사용자별 접근 제어가 없습니다. 이 API는 로컬 개발·시연 전용이며 외부 공개 서버에 그대로 배포하면 안 됩니다. 공개 배포 전 인증·인가와 사용자별 이력 분리를 반드시 구현해야 합니다.
-
-### 쿼리 파라미터
-
-| 이름 | 타입 | 기본값 | 범위 |
-| --- | --- | --- | --- |
-| `limit` | integer | `20` | 1~100 |
-| `offset` | integer | `0` | 0 이상 |
-
-요청:
-
-```powershell
-Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/api/history?limit=20&offset=0"
-```
-
-성공 응답 예시 (`200 OK`):
+신고 종류는 `false_positive`(오탐) 또는 `suspicious`(의심 URL)이다. URL·자유 텍스트는 받지 않는다. 같은 검사·종류를 재전송해도 신고는 한 건이다.
 
 ```json
-{
-  "total": 1,
-  "items": [
-    {
-      "scan_id": "3f619f12-8843-4e44-98aa-b5b3b43b472a",
-      "created_at": "2026-11-10T03:15:30.123456Z",
-      "model_status": "completed",
-      "model_prediction": "benign",
-      "model_confidence": 0.85,
-      "model_is_mock": true,
-      "virustotal_status": "skipped",
-      "virustotal_stats": null,
-      "risk_level": "unknown",
-      "is_complete": false
-    }
-  ]
-}
+{"scan_id":"3f619f12-8843-4e44-98aa-b5b3b43b472a","kind":"false_positive","status":"received"}
 ```
 
-DB에 이력이 없으면 다음과 같이 반환합니다.
+### HTTP 오류
 
-```json
-{
-  "total": 0,
-  "items": []
-}
-```
+| HTTP | 앱 처리 |
+|---|---|
+| 401 | 설치 토큰 형식/누락 확인 |
+| 404 | 신고 대상이 없거나 다른 설치의 검사 |
+| 422 | 잘못된 입력. URL 형식과 스킴은 invalid_url, unsupported_scheme로 구분. 필드/길이/페이지 범위 오류도 422 |
+| 503 | model_load_failed. 서버 산출물·의존성 확인 |
+| 500 | inference_failed 또는 저장·조회 오류. 검사 실패로 표시 |
 
-개인정보 및 보안상 검사 이력 응답에는 원본 URL과 `url_hash`가 모두 포함되지 않습니다. API 키와 HMAC 비밀키도 저장하거나 반환하지 않습니다.
+검사 응답의 `url`은 요청 앱으로 되돌아오므로 앱에서도 요청·응답 본문이나 토큰을 로깅하지 않는다.
 
-## HTTP 상태 코드와 오류 처리
-
-| API | 상태 코드 | 의미 |
-| --- | --- | --- |
-| 모든 API | `200` | 요청 처리 성공 |
-| `POST /api/scan` | `422` | URL 형식, HTTP/HTTPS 스킴 또는 요청 필드 검증 실패 |
-| `GET /api/history` | `422` | `limit` 또는 `offset` 범위/타입 검증 실패 |
-| `POST /api/scan` | `500` | 검사 이력 DB 저장 실패 (`Failed to save scan history`) |
-| `GET /api/history` | `500` | 검사 이력 DB 조회 실패 (`Failed to load scan history`) |
-
-VirusTotal의 404, 429, 인증 오류, 시간 초과 및 네트워크 오류는 일반적으로 `POST /api/scan`의 HTTP 응답 자체를 실패시키지 않습니다. HTTP `200` 응답 안의 `virustotal.status`와 `error_code`로 표현됩니다. 따라서 Android 클라이언트는 HTTP 상태 코드뿐 아니라 이 두 필드를 함께 확인해야 합니다.
-
-캐시 DB 오류는 `virustotal.status="error"`, `error_code="cache_error"`로 표현될 수 있습니다. DB 전체 장애로 검사 이력까지 저장하지 못하면 API는 HTTP `500`을 반환합니다.
-
-FastAPI의 `422` 응답 본문은 검증 실패 위치와 사유가 포함된 표준 `detail` 배열 형식입니다. 서버의 DB 오류 응답은 내부 SQL이나 비밀정보를 노출하지 않는 고정 메시지를 사용합니다.
-
-## Android에서 접속
-
-일반적인 로컬 개발과 Android Emulator 테스트에서는 서버를 PC의 loopback 주소에만 바인딩합니다.
+## 검증
 
 ```powershell
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe tests\smoke_http.py
 ```
 
-Android 앱에는 인터넷 권한이 필요합니다.
-
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
-### Android Emulator
-
-Android Studio 기본 Emulator에서 `127.0.0.1`은 PC가 아니라 Emulator 자신입니다. 호스트 PC의 서버에는 다음 주소로 접속합니다.
-
-```text
-http://10.0.2.2:8000
-```
-
-예:
-
-```text
-POST http://10.0.2.2:8000/api/scan
-GET  http://10.0.2.2:8000/api/history?limit=20&offset=0
-```
-
-### 실제 Android 기기
-
-1. PC와 Android 기기를 같은 Wi-Fi/LAN에 연결합니다.
-2. PC PowerShell에서 `ipconfig`를 실행해 사용 중인 네트워크 어댑터의 IPv4 주소를 확인합니다.
-3. 실기기 테스트가 필요할 때만 서버를 모든 인터페이스에 바인딩합니다.
-
-```powershell
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-4. 앱의 Base URL을 `http://<PC_IPV4>:8000`으로 설정합니다. 예시 자리표시자는 실제 PC 주소로 교체해야 합니다.
-5. Windows Defender 방화벽에서 필요하면 TCP 8000 포트를 **현재 신뢰된 Private 네트워크와 개발 시간에만** 허용합니다. Public 네트워크에는 열지 마세요.
-
-```text
-http://<PC_IPV4>:8000/health
-```
-
-Android 9(API 28) 이상에서는 평문 HTTP가 앱 설정에 따라 차단될 수 있습니다. 개발 빌드에서만 Network Security Config 또는 `android:usesCleartextTraffic="true"`를 검토하고, 운영 환경에서는 HTTPS를 사용하세요.
-
-`0.0.0.0`은 서버가 여러 네트워크 인터페이스에서 연결을 받게 하므로 기본 실행값으로 사용하지 않습니다. 실기기 테스트가 끝나면 서버를 종료하거나 `127.0.0.1` 바인딩으로 되돌리고, 방화벽 허용 규칙도 제거하거나 비활성화하세요.
-
-## Swagger UI
-
-서버 실행 후 브라우저에서 다음 주소를 엽니다.
-
-- [Swagger UI](http://127.0.0.1:8000/docs)
-- [ReDoc](http://127.0.0.1:8000/redoc)
-- [OpenAPI JSON](http://127.0.0.1:8000/openapi.json)
-
-## 현재 구현 상태
-
-구현됨:
-
-- FastAPI 서버, 상태 확인 및 Swagger/OpenAPI
-- HTTP/HTTPS URL 요청 검증
-- 고정 `benign`, `0.85`를 반환하는 Mock URLBERT 서비스
-- VirusTotal API v3 기존 URL 분석 결과 조회
-- VirusTotal 완료 결과의 24시간 SQLite 캐시(개발 버전 임시 TTL 정책)
-- HMAC-SHA256 URL 식별자와 SQLite 검사 이력 저장
-- 페이지네이션 기반 검사 이력 조회
-- 외부 API 및 DB 오류 상태 구분
-
-아직 구현되지 않음:
-
-- `CrabInHoney/urlbert-tiny-v6` 및 `malicious_urls_4class` 기반 실제 4종 URL 분류
-- `1 - P(benign)`과 VirusTotal 탐지 통계를 결합한 최종 위험도 판정
-- VirusTotal 신규 URL 분석 제출
-- 제안서에 포함된 사용자 URL 신고 및 오탐(false positive) 피드백 접수 API
-- 실제 웹페이지 콘텐츠 분석 및 리디렉션 최종 목적지 검사
-- 사용자 인증, 사용자별 이력 분리 및 접근 제어
-- 운영 환경용 HTTPS, 권한 정책 및 배포 구성
-- 검사 이력 상세 조회·삭제 API
+첫 명령은 임시 DB·모델/외부 API 대역으로 분기와 오류를 검증한다. 두 번째는 실물 CPU 모델과 임시 SQLite, 빈 VT 키, 로컬 Uvicorn 서버로 두 입력의 단독/API 일치, 이력, 신고, 소유권, 민감 URL 보류를 확인한다.

@@ -9,7 +9,8 @@ from app.db.database import get_db
 from app.main import app
 
 
-client = TestClient(app)
+pytestmark = pytest.mark.usefixtures("stub_prediction")
+client = TestClient(app, headers={"Authorization": "Bearer " + "ab" * 32})
 TEST_URL = "https://example.com/login"
 STATS = {
     "malicious": 1,
@@ -30,7 +31,7 @@ COMPLETED_REPORT = {
 def override_database(monkeypatch: pytest.MonkeyPatch) -> Session:
     db = Session()
 
-    monkeypatch.setattr(scan, "save_scan_history", lambda db, url, result: None)
+    monkeypatch.setattr(scan, "save_scan_history", lambda db, url, result, owner: None)
 
     def provide_test_db():
         yield db
@@ -98,8 +99,8 @@ def test_scan_uses_cache_without_external_lookup(
     assert cache_calls == [(override_database, TEST_URL)]
     assert payload["virustotal"] == COMPLETED_REPORT
     assert payload["cached"] is True
-    assert payload["risk_level"] == "unknown"
-    assert payload["is_complete"] is False
+    assert payload["risk_level"] == "danger"
+    assert payload["is_complete"] is True
 
 
 def test_scan_cache_miss_fetches_and_saves_report(
@@ -134,8 +135,8 @@ def test_scan_cache_miss_fetches_and_saves_report(
     assert saved_reports == [(override_database, TEST_URL, COMPLETED_REPORT)]
     assert payload["virustotal"] == COMPLETED_REPORT
     assert payload["cached"] is False
-    assert payload["risk_level"] == "unknown"
-    assert payload["is_complete"] is False
+    assert payload["risk_level"] == "danger"
+    assert payload["is_complete"] is True
 
 
 def test_scan_expired_cache_refetches_report(
@@ -243,7 +244,7 @@ def test_scan_history_failure_returns_server_error(
     def save_report(db: Session, url: str, report: dict) -> bool:
         return True
 
-    def failed_history_save(db: Session, url: str, result) -> None:
+    def failed_history_save(db: Session, url: str, result, owner) -> None:
         raise RuntimeError("database unavailable")
 
     monkeypatch.setattr(scan, "get_url_report", completed_lookup)
